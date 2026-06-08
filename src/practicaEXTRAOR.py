@@ -93,6 +93,35 @@ def procesa_paquete(user, pkt_header, pkt_data):
     else:
         user["otros_ip"] += 1
         return
+    
+    flow_key = (
+        src_ip,
+        dst_ip,
+        proto_text,
+        src_port,
+        dst_port
+    )
+
+    flows = user["flows"]
+
+    if flow_key not in flows:
+        flows[flow_key] = {
+            "start_time": pkt_header.ts.tv_sec + pkt_header.ts.tv_usec / 1000000,
+            "last_time": pkt_header.ts.tv_sec + pkt_header.ts.tv_usec / 1000000,
+            "packets": 1,
+            "bytes": pkt_header.len,
+            "acks": 0
+        }
+    else:
+        flows[flow_key]["packets"] += 1
+        flows[flow_key]["bytes"] += pkt_header.len
+
+        flows[flow_key]["last_time"] = (
+            pkt_header.ts.tv_sec +
+            pkt_header.ts.tv_usec / 1000000
+        )
+    
+    print("Flujos activos:", len(flows))
 
     print(f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} ({proto_text})")
 
@@ -116,7 +145,8 @@ def main():
         "no_ipv4": 0,
         "tcp": 0,
         "udp": 0,
-        "otros_ip": 0
+        "otros_ip": 0,
+        "flows": {}
     }
     
     ret = pcap_loop(pcap, -1, procesa_paquete, estado)
