@@ -1,1 +1,5 @@
 Alberto Alonso Hernán
+
+Se pide que la ejecución se realice con netflow.py pero la entrega se pide el fichero practicaEXTRAOR, por lo que 
+he metido el main en netflow y la lógica interna en practicaEXTRAOR.py
+ 

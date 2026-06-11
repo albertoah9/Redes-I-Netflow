@@ -1,6 +1,12 @@
 import argparse
 from rc1_pcap import pcap_open_offline, pcap_loop, pcap_close
 
+# Variables globales
+flows = {}
+timeout = 0
+flows_file = None
+flujos_expirados = 0
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Analizador Netflow simplificado para trazas PCAP")
 
@@ -20,7 +26,10 @@ def parse_args():
     return parser.parse_args()
 
 def procesa_paquete(user, pkt_header, pkt_data):
-    user["paquetes"] += 1
+    global flows
+    global timeout
+    global flows_file
+    global flujos_expirados
 
     if len(pkt_data) < 14:
         return
@@ -28,10 +37,7 @@ def procesa_paquete(user, pkt_header, pkt_data):
     ethertype = int.from_bytes(pkt_data[12:14], byteorder="big")
 
     if ethertype != 0x0800:
-        user["no_ipv4"] += 1
         return
-
-    user["ipv4"] += 1
 
     ip_start = 14
 
@@ -41,7 +47,11 @@ def procesa_paquete(user, pkt_header, pkt_data):
     version_ihl = pkt_data[ip_start]
     version = version_ihl >> 4
     ihl = version_ihl & 0x0F
-    ip_header_len = ihl * 4 # ihl está en palabraas de 32 bits (4 bytes)
+
+    if ihl < 5:
+        return
+    
+    ip_header_len = ihl * 4 # ihl está en palabras de 32 bits (4 bytes)
 
     if version != 4:
         return
@@ -62,7 +72,6 @@ def procesa_paquete(user, pkt_header, pkt_data):
         if len(pkt_data) < transport_start + 20:
             return
 
-        user["tcp"] += 1
         proto_text = "TCP"
 
         src_port = int.from_bytes(
@@ -84,7 +93,6 @@ def procesa_paquete(user, pkt_header, pkt_data):
         if len(pkt_data) < transport_start + 8:
             return
 
-        user["udp"] += 1
         proto_text = "UDP"
 
         src_port = int.from_bytes(
@@ -98,7 +106,6 @@ def procesa_paquete(user, pkt_header, pkt_data):
         )
 
     else:
-        user["otros_ip"] += 1
         return
 
     timestamp = pkt_header.ts.tv_sec + pkt_header.ts.tv_usec / 1000000
@@ -110,8 +117,6 @@ def procesa_paquete(user, pkt_header, pkt_data):
         src_port,
         dst_port
     )
-
-    flows = user["flows"]
 
     if flow_key not in flows:
         flows[flow_key] = {
@@ -126,12 +131,13 @@ def procesa_paquete(user, pkt_header, pkt_data):
             "packets": 1,
             "acks": ack
         }
+
     else:
         flow = flows[flow_key]
 
-        if timestamp - flow["last_time"] > user["timeout"]:
-            expira_flujo(flow, user["flows_file"])
-            user["flujos_expirados"] += 1
+        if timestamp - flow["last_time"] > timeout:
+            expira_flujo(flow, flows_file)
+            flujos_expirados += 1
 
             flows[flow_key] = {
                 "start_time": timestamp,
@@ -152,8 +158,8 @@ def procesa_paquete(user, pkt_header, pkt_data):
             flow["bytes"] += pkt_header.len
             flow["acks"] += ack
 
+    # Depuraci´n
     print("Flujos activos:", len(flows))
-
     print(f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} ({proto_text})")
 
 def expira_flujo(flow, fichero):
@@ -165,7 +171,7 @@ def expira_flujo(flow, fichero):
     else:
         pps = 0
         kbps = 0
-    
+
     linea = (
         f"{flow['start_time']:.6f}\t"
         f"{flow['last_time']:.6f}\t"
@@ -184,10 +190,17 @@ def expira_flujo(flow, fichero):
     fichero.write(linea)
 
 def main():
+    global timeout
+    global flows_file
+    global flujos_expirados
+    global flows
+
     args = parse_args()
 
     print("Fichero PCAP:", args.i)
-    print("Tiempo de expiracion:", args.T)
+
+    timeout = args.T
+    print("Tiempo de expiracion:", timeout)
 
     errbuf = bytearray()
     pcap = pcap_open_offline(args.i, errbuf)
@@ -199,20 +212,7 @@ def main():
     
     flows_file = open("flows.txt", "w")
 
-    estado = {
-        "paquetes": 0,
-        "ipv4": 0,
-        "no_ipv4": 0,
-        "tcp": 0,
-        "udp": 0,
-        "otros_ip": 0,
-        "flows": {},
-        "timeout": args.T,
-        "flujos_expirados": 0,
-        "flows_file": flows_file
-    }
-
-    ret = pcap_loop(pcap, -1, procesa_paquete, estado)
+    ret = pcap_loop(pcap, -1, procesa_paquete, None)
 
     if ret == -1:
         print("Error durante pcap_loop")
@@ -221,23 +221,15 @@ def main():
     else:
         print("Lectura finalizada con exito")
     
-    print(f"Paquetes leidos: {estado['paquetes']}")
-    print(f"Paquetes IPv4: {estado["ipv4"]}")
-    print(f"Paquetes no IPv4: {estado['no_ipv4']}")
-    print(f"Paquetes TCP: {estado['tcp']}")
-    print(f"Paquetes UDP: {estado['udp']}")
-    print(f"Otros IPv4: {estado['otros_ip']}")
+    for flow in flows.values():
+        expira_flujo(flow, flows_file)
+        flujos_expirados += 1
+    flows.clear()
 
-    for flow in estado["flows"].values():
-        expira_flujo(flow, estado["flows_file"])
-        estado["flujos_expirados"] += 1
-    estado["flows"].clear()
-
-    print("Flujos expirados:", estado["flujos_expirados"])
-    print("Flujos activos:", len(estado["flows"]))
+    print("Flujos expirados:", flujos_expirados)
+    print("Flujos activos:", len(flows))
 
     flows_file.close()
-
     pcap_close(pcap)
 
 if __name__ == "__main__":
