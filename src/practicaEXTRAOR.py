@@ -150,7 +150,7 @@ def procesa_paquete(user, pkt_header, pkt_data):
             flow["last_time"] = timestamp
             flow["packets"] += 1
             flow["bytes"] += pkt_header.len
-            flow["ack"] += ack
+            flow["acks"] += ack
 
     print("Flujos activos:", len(flows))
 
@@ -221,15 +221,15 @@ def main():
     else:
         print("Lectura finalizada con exito")
     
-    print(f"Paquetes leidos: {estado["paquetes"]}")
+    print(f"Paquetes leidos: {estado['paquetes']}")
     print(f"Paquetes IPv4: {estado["ipv4"]}")
-    print(f"Paquetes no IPv4: {estado["no_ipv4"]}")
-    print(f"Paquetes TCP: {estado["tcp"]}")
-    print(f"Paquetes UDP: {estado["udp"]}")
-    print(f"Otros IPv4: {estado["otros_ip"]}")
+    print(f"Paquetes no IPv4: {estado['no_ipv4']}")
+    print(f"Paquetes TCP: {estado['tcp']}")
+    print(f"Paquetes UDP: {estado['udp']}")
+    print(f"Otros IPv4: {estado['otros_ip']}")
 
     for flow in estado["flows"].values():
-        expira_flujo(flow, user["flows_file"])
+        expira_flujo(flow, estado["flows_file"])
         estado["flujos_expirados"] += 1
     estado["flows"].clear()
 
