@@ -1,29 +1,9 @@
-import argparse
-from rc1_pcap import pcap_open_offline, pcap_loop, pcap_close
-
 # Variables globales
 flows = {}
 timeout = 0
 flows_file = None
 flujos_expirados = 0
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Analizador Netflow simplificado para trazas PCAP")
-
-    parser.add_argument(
-        "-i",
-        required=True,
-        help="Nombre del fichero PCAP de entrada"
-    )
-
-    parser.add_argument(
-        "-T",
-        required=True,
-        type=float,
-        help="Tiempo de expiración de flujos en segundos"
-    )
-
-    return parser.parse_args()
 
 def procesa_paquete(user, pkt_header, pkt_data):
     global flows
@@ -162,6 +142,7 @@ def procesa_paquete(user, pkt_header, pkt_data):
     print("Flujos activos:", len(flows))
     print(f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} ({proto_text})")
 
+
 def expira_flujo(flow, fichero):
     duracion = flow["last_time"] - flow["start_time"]
 
@@ -188,49 +169,3 @@ def expira_flujo(flow, fichero):
     )
 
     fichero.write(linea)
-
-def main():
-    global timeout
-    global flows_file
-    global flujos_expirados
-    global flows
-
-    args = parse_args()
-
-    print("Fichero PCAP:", args.i)
-
-    timeout = args.T
-    print("Tiempo de expiracion:", timeout)
-
-    errbuf = bytearray()
-    pcap = pcap_open_offline(args.i, errbuf)
-
-    if pcap is None:
-        print("Error abriendo el fichero PCAP")
-        print(errbuf)
-        return
-    
-    flows_file = open("flows.txt", "w")
-
-    ret = pcap_loop(pcap, -1, procesa_paquete, None)
-
-    if ret == -1:
-        print("Error durante pcap_loop")
-    elif ret == -2:
-        print("pcap_loop interrumpido")
-    else:
-        print("Lectura finalizada con exito")
-    
-    for flow in flows.values():
-        expira_flujo(flow, flows_file)
-        flujos_expirados += 1
-    flows.clear()
-
-    print("Flujos expirados:", flujos_expirados)
-    print("Flujos activos:", len(flows))
-
-    flows_file.close()
-    pcap_close(pcap)
-
-if __name__ == "__main__":
-    main()
