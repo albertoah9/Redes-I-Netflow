@@ -138,10 +138,6 @@ def procesa_paquete(user, pkt_header, pkt_data):
             flow["bytes"] += pkt_header.len
             flow["acks"] += ack
 
-    # Depuraci´n
-    print("Flujos activos:", len(flows))
-    print(f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} ({proto_text})")
-
 
 def expira_flujo(flow, fichero):
     duracion = flow["last_time"] - flow["start_time"]

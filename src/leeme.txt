@@ -1,4 +1,17 @@
-Alberto Alonso Hernán
+Autor: Alberto Alonso Hernán
 
-La ejecución de la práctica se realiza mediante el fichero netflow.py, tal y como se indica en el enunciado. 
-La lógica de procesamiento se encuentra implementada en practicaEXTRAOR.py, que es el fichero solicitado para la entrega.
+
+Ficheros entregados:
+
+- practicaEXTRAOR.py
+- netflow.py
+- rc1_pcap
+
+
+Notas:
+
+- netflow.py contiene el main del programa (se ejecuta desde este fichero como se indica en 
+    el enunciado: python3 netflow.py -i <nombre fichero PCAP> -T <tiempo de expiración en segundos>)
+- practicaEXTRAOR.py contiene la lógica de procesamiento de paquetes y gestión de flujos.
+- Los resultados se guardan en el fichero flows.txt.
+- rc1_pcap es la librería proporcionada por la asignatura, la he entregado para poder realizar la ejecución directamente
